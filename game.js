@@ -16,10 +16,11 @@ const loadingScreen = document.getElementById('loading');
 
 // 游戏参数
 const MAX_ANGLE = 30; // 最大旋转角度（度）
-const CONTROL_POWER = 0.005; // 按钮控制的角速度增量
+const CONTROL_POWER = 0.005; // 初始按钮控制的角速度增量
 const GRAVITY_FACTOR = 0.00005; // 角度越大，角速度增加越快
 const DIFFICULTY_INCREASE_INTERVAL = 1000; // 每隔多少毫秒增加难度
 const DIFFICULTY_INCREASE_RATE = 0.000012; // 每次难度增加的幅度
+const CONTROL_INCREASE_RATE = 0.000008; // 每次控制能力增加的幅度（约为难度增加的60%-70%）
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
 
 // 图片资源信息 - 原始尺寸
@@ -47,6 +48,7 @@ let deltaTime = 0;
 let score = 0;
 let gameTime = 0;
 let currentGravityFactor = GRAVITY_FACTOR;
+let currentControlPower = CONTROL_POWER; // 当前控制能力
 let highScore = localStorage.getItem('highScore') || 0;
 
 // 等待图片加载完成
@@ -64,6 +66,7 @@ function initGame() {
     score = 0;
     gameTime = 0;
     currentGravityFactor = GRAVITY_FACTOR;
+    currentControlPower = CONTROL_POWER; // 重置控制能力
     
     // 设置元素位置
     positionElements();
@@ -183,10 +186,10 @@ function gameLoop(timestamp) {
 function update(dt) {
     // 根据按钮输入更新角速度
     if (leftPressed) {
-        angularVelocity -= CONTROL_POWER * dt;
+        angularVelocity -= currentControlPower * dt;
     }
     if (rightPressed) {
-        angularVelocity += CONTROL_POWER * dt;
+        angularVelocity += currentControlPower * dt;
     }
     
     // 角度越大，自然角速度越大（模拟重力效应）
@@ -229,7 +232,16 @@ function updateScore() {
 
 // 增加游戏难度
 function increaseDifficulty() {
+    // 增加重力因子（增加难度）
     currentGravityFactor += DIFFICULTY_INCREASE_RATE;
+    
+    // 同时增加控制能力，但增加幅度略小于难度增加，保持游戏挑战性
+    currentControlPower += CONTROL_INCREASE_RATE;
+    
+    // 可选：在难度增加到一定程度时提高控制能力增加的速率，防止游戏变得不可玩
+    if (currentGravityFactor > GRAVITY_FACTOR * 5) {
+        currentControlPower += CONTROL_INCREASE_RATE * 0.5; // 额外增加50%的控制能力
+    }
 }
 
 // 游戏结束
