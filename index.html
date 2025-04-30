@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小女孩平衡游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            touch-action: none;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: white;
+        }
+        
+        #bg-train {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+        
+        #girl-body {
+            position: absolute;
+            width: auto;
+            height: auto;
+            transform-origin: center bottom;
+            z-index: 5;
+            object-fit: contain; /* 确保图片不会被拉伸变形 */
+        }
+        
+        #anchor {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: transparent;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 10%;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 0 20px;
+            z-index: 20;
+        }
+        
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.7;
+            transition: opacity 0.2s, transform 0.1s;
+            touch-action: none;
+            border-radius: 50%;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-btn:active {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+        
+        #left-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #left-btn::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-top: 20px solid transparent;
+            border-right: 35px solid rgba(0, 0, 0, 0.5);
+            border-bottom: 20px solid transparent;
+        }
+        
+        #right-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #right-btn::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-top: 20px solid transparent;
+            border-left: 35px solid rgba(0, 0, 0, 0.5);
+            border-bottom: 20px solid transparent;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+            min-width: 250px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        #restart-btn, #start-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        #restart-btn:active, #start-btn:active {
+            background-color: #3367d6;
+            transform: scale(0.98);
+        }
+        
+        #angle-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            font-weight: bold;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 15px;
+            border-radius: 15px;
+            z-index: 20;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: none; /* 隐藏角度显示，让游戏更加直观 */
+        }
+        
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 22px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 8px 20px;
+            border-radius: 25px;
+            z-index: 20;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            padding: 20px;
+            text-align: center;
+            color: white;
+        }
+        
+        #start-screen h1 {
+            margin-bottom: 20px;
+            color: white;
+            font-size: 32px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+        
+        #start-screen p {
+            margin-bottom: 15px;
+            max-width: 600px;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.5;
+            font-size: 16px;
+        }
+        
+        .highlight {
+            color: #ff7675;
+            font-weight: bold;
+        }
+        
+        .angle-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 150px;
+            background-color: rgba(255, 0, 0, 0.3);
+            transform-origin: bottom center;
+            z-index: 5;
+            display: none; /* 隐藏角度指示器 */
+        }
+        
+        #left-indicator {
+            transform: translateX(-50%) rotate(-45deg);
+        }
+        
+        #right-indicator {
+            transform: translateX(-50%) rotate(45deg);
+        }
+        
+        /* 加载动画 */
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 300;
+            flex-direction: column;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #loading p {
+            color: white;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <img id="bg-train" src="img/img_bg_train.png" alt="地铁背景">
+        <img id="girl-body" src="img/img_girl_body.png" alt="女孩身体">
+        <div id="anchor"></div>
+        <div id="controls">
+            <div id="left-btn" class="control-btn"></div>
+            <div id="right-btn" class="control-btn"></div>
+        </div>
+        <div id="angle-display">0°</div>
+        <div id="score-display">得分: 0</div>
+        <div class="angle-indicator" id="left-indicator"></div>
+        <div class="angle-indicator" id="right-indicator"></div>
+        <div id="game-over">
+            <h2>游戏结束</h2>
+            <p>小女孩打扰到了旁边的乘客！</p>
+            <p id="final-score">得分: 0</p>
+            <button id="restart-btn">再玩一次</button>
+        </div>
+        <div id="start-screen">
+            <h1>地铁小憩</h1>
+            <p>小女孩在地铁上睡着了，她的头不停地晃动。</p>
+            <p>帮助她保持平衡，不要让她打扰到旁边的乘客！</p>
+            <p>头部倾斜过大就会碰到旁边的人。</p>
+            <p>使用左右按钮来控制女孩晃动的方向。</p>
+            <p>随着时间的推移，困意会越来越强，游戏也会变得越来越难！</p>
+            <button id="start-btn">开始游戏</button>
+        </div>
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>正在加载游戏资源...</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html> 
