@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>小女孩平衡游戏</title>
+    <title>地铁睡神</title>
+    <!-- 添加 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -192,15 +194,18 @@
         
         #score-display {
             position: absolute;
-            top: 20px;
+            top: 40px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 22px;
-            background-color: rgba(255, 255, 255, 0.7);
-            padding: 8px 20px;
-            border-radius: 25px;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 48px;
+            font-weight: 700;
+            color: white;
+            background: none;
+            padding: 10px 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
             z-index: 20;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            letter-spacing: 2px;
         }
         
         #start-screen {
@@ -309,22 +314,21 @@
             <div id="right-btn" class="control-btn"></div>
         </div>
         <div id="angle-display">0°</div>
-        <div id="score-display">得分: 0</div>
+        <div id="score-display">00:00.0</div>
         <div class="angle-indicator" id="left-indicator"></div>
         <div class="angle-indicator" id="right-indicator"></div>
         <div id="game-over">
-            <h2>游戏结束</h2>
-            <p>小女孩打扰到了旁边的乘客！</p>
-            <p id="final-score">得分: 0</p>
-            <button id="restart-btn">再玩一次</button>
+            <h2>你醒了！</h2>
+            <p id="final-score" style="font-size: 20px; margin: 10px 0;">你睡了 00:00.0</p>
+            <p id="best-score" style="font-size: 16px; color: #aaa; margin-bottom: 20px;">历史最佳: 00:00.0</p>
+            <div id="gameover-image" style="margin: 20px 0; border-radius: 15px; overflow: hidden;">
+                <img src="" alt="游戏结束场景" style="max-width: 100%; height: auto;">
+            </div>
+            <button id="restart-btn" style="background-color: #4285f4; color: white; padding: 12px 30px; border: none; border-radius: 25px; font-size: 18px; cursor: pointer; transition: transform 0.2s;">接着睡</button>
         </div>
         <div id="start-screen">
-            <h1>地铁小憩</h1>
-            <p>小女孩在地铁上睡着了，她的头不停地晃动。</p>
-            <p>帮助她保持平衡，不要让她打扰到旁边的乘客！</p>
-            <p>头部倾斜过大就会碰到旁边的人。</p>
-            <p>使用左右按钮来控制女孩晃动的方向。</p>
-            <p>随着时间的推移，困意会越来越强，游戏也会变得越来越难！</p>
+            <h1>地铁睡神</h1>
+            <p>你在地铁上睡着了，使用左右按钮来保持平衡。</p>
             <button id="start-btn">开始游戏</button>
         </div>
         <div id="loading">

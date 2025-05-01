@@ -15,6 +15,7 @@ const gameContainer = document.getElementById('game-container');
 const startScreen = document.getElementById('start-screen');
 const startBtn = document.getElementById('start-btn');
 const loadingScreen = document.getElementById('loading');
+const gameoverImage = document.querySelector('#gameover-image img');
 
 // 游戏参数
 const MAX_ANGLE = 30; // 最大旋转角度（度）
@@ -25,6 +26,11 @@ const DIFFICULTY_INCREASE_RATE = 0.000012; // 每次难度增加的幅度
 const CONTROL_INCREASE_RATE = 0.000008; // 每次控制能力增加的幅度（约为难度增加的60%-70%）
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
 const CLOUD_SPEED = 0.05; // 云层移动速度（像素/毫秒）
+// 地铁车厢震动参数
+const TRAIN_BOUNCE_AMPLITUDE = 3; // 震动幅度（像素）
+const TRAIN_BOUNCE_SPEED = 0.0015; // 震动速度（弧度/毫秒）
+const TRAIN_BOUNCE_SECONDARY_AMPLITUDE = 1; // 次要震动幅度（像素）
+const TRAIN_BOUNCE_SECONDARY_SPEED = 0.005; // 次要震动速度（弧度/毫秒）
 
 // 图片资源信息 - 原始尺寸
 const BG_ORIGINAL_WIDTH = 934; // 背景图片原始宽度
@@ -36,7 +42,7 @@ const CLOUD_ORIGINAL_HEIGHT = 581; // 云层图片原始高度
 
 // 女孩在背景图中的位置比例 (相对于背景图的原始尺寸)
 const GIRL_POSITION_X_RATIO = 0.51; // 女孩在背景图中的水平位置比例（居中）
-const GIRL_POSITION_Y_RATIO = 0.62; // 女孩在背景图中的垂直位置比例
+const GIRL_POSITION_Y_RATIO = 0.63; // 女孩在背景图中的垂直位置比例
 
 // 女孩旋转锚点位置调整
 const GIRL_PIVOT_POINT_RATIO = 0.85; // 旋转锚点位置占女孩高度的比例（从上到下）
@@ -50,17 +56,47 @@ let leftPressed = false;
 let rightPressed = false;
 let lastTime = 0;
 let deltaTime = 0;
-let score = 0;
+let timeElapsed = 0; // 游戏时间（毫秒）
 let gameTime = 0;
 let currentGravityFactor = GRAVITY_FACTOR;
 let currentControlPower = CONTROL_POWER; // 当前控制能力
 let highScore = localStorage.getItem('highScore') || 0;
 let cloudPositions = [0, 0]; // 两张云层图片的位置
 let cloudWidth = 0; // 云层图片的宽度（将在positionElements中计算）
+let trainBouncePhase = 0; // 地铁车厢震动的相位
+let trainSecondaryBouncePhase = 0; // 次要震动相位
+let randomBounceTimer = 0; // 随机额外震动计时器
+let randomBounceOffset = 0; // 随机额外震动偏移量
 
 // 等待图片加载完成
 let imagesLoaded = 0;
 const requiredImages = 3; // 背景、女孩和云层图片
+
+// 结局图片配置
+const gameoverImages = {
+    left: [
+        'img/img_gameover_left1.png',
+        'img/img_gameover_left2.png'
+    ],
+    right: [
+        'img/img_gameover_right1.png',
+        'img/img_gameover_righ2.png'
+    ]
+};
+
+// 随机获取数组中的一个元素
+function getRandomElement(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
+// 格式化时间为 分:秒.毫秒
+function formatTime(milliseconds) {
+    const minutes = Math.floor(milliseconds / 60000);
+    const seconds = Math.floor((milliseconds % 60000) / 1000);
+    const ms = Math.floor((milliseconds % 1000/100) );
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(1, '0')}`;
+}
 
 // 初始化游戏
 function initGame() {
@@ -70,10 +106,14 @@ function initGame() {
     angularVelocity = (Math.random() > 0.5 ? 1 : -1) * (Math.random() * 0.2 + 0.1)/10;
     isGameOver = false;
     isGameStarted = true;
-    score = 0;
+    timeElapsed = 0;
     gameTime = 0;
     currentGravityFactor = GRAVITY_FACTOR;
     currentControlPower = CONTROL_POWER; // 重置控制能力
+    trainBouncePhase = 0; // 重置震动相位
+    trainSecondaryBouncePhase = 0; // 重置次要震动相位
+    randomBounceTimer = 0; // 重置随机震动计时器
+    randomBounceOffset = 0; // 重置随机震动偏移量
     
     // 设置元素位置
     positionElements();
@@ -86,8 +126,11 @@ function initGame() {
     updateDisplay();
     updateScore();
     
-    // 重置图片旋转
-    girlBody.style.transform = 'rotate(0deg)';
+    // 重置图片旋转和位置
+    const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
+    const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
+    const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
+    girlBody.style.transform = `translateY(${totalOffset}px) rotate(0deg)`;
 }
 
 // 设置元素位置
@@ -105,13 +148,13 @@ function positionElements() {
     
     if (containerAspectRatio > bgAspectRatio) {
         // 如果容器比背景更宽，以宽度为基准缩放
-        bgScaleFactor = containerWidth / BG_ORIGINAL_WIDTH;
-        bgDisplayWidth = containerWidth;
+        bgScaleFactor = containerWidth / BG_ORIGINAL_WIDTH * 1.1; // 设置为屏幕宽度的1.1倍，预留震动空间
+        bgDisplayWidth = containerWidth * 1.1;
         bgDisplayHeight = BG_ORIGINAL_HEIGHT * bgScaleFactor;
     } else {
         // 如果容器比背景更高，以高度为基准缩放
         bgScaleFactor = containerHeight / BG_ORIGINAL_HEIGHT;
-        bgDisplayWidth = BG_ORIGINAL_WIDTH * bgScaleFactor;
+        bgDisplayWidth = BG_ORIGINAL_WIDTH * bgScaleFactor * 1.1; // 设置为宽度的1.1倍，预留震动空间
         bgDisplayHeight = containerHeight;
     }
     
@@ -120,9 +163,12 @@ function positionElements() {
     const bgOffsetY = (containerHeight - bgDisplayHeight) / 2;
     
     // 调整背景图片尺寸
-    bgTrain.style.width = '100%';
-    bgTrain.style.height = '100%';
+    bgTrain.style.width = '110%'; // 设置为110%以便有空间进行震动
+    bgTrain.style.height = '110%';
     bgTrain.style.objectFit = 'cover';
+    bgTrain.style.position = 'absolute';
+    bgTrain.style.left = '-5%'; // 将图片向左偏移5%，以便震动时不会露出背景
+    bgTrain.style.top = '-5%';  // 将图片向上偏移5%，以便震动时不会露出背景
     
     // 设置云层背景
     cloudWidth = CLOUD_ORIGINAL_WIDTH * bgScaleFactor;
@@ -142,8 +188,8 @@ function positionElements() {
     bgCloud2.style.left = `${cloudPositions[1]}px`;
     
     // 使用背景图片的缩放系数来计算女孩图片的尺寸
-    const girlWidth = GIRL_ORIGINAL_WIDTH * bgScaleFactor;
-    const girlHeight = GIRL_ORIGINAL_HEIGHT * bgScaleFactor;
+    const girlWidth = GIRL_ORIGINAL_WIDTH * bgScaleFactor*1.05;
+    const girlHeight = GIRL_ORIGINAL_HEIGHT * bgScaleFactor*1.05;
     
     girlBody.style.width = `${girlWidth}px`;
     girlBody.style.height = `${girlHeight}px`;
@@ -189,14 +235,19 @@ function gameLoop(timestamp) {
     // 更新云层位置（无论游戏是否开始）
     updateClouds(deltaTime);
     
+    // 更新地铁车厢震动效果（无论游戏是否开始）
+    updateTrainBounce(deltaTime);
+    
     if (isGameStarted && !isGameOver) {
         update(deltaTime);
         updateDisplay();
         
-        // 增加游戏时间和分数
+        // 增加游戏时间
         gameTime += deltaTime;
-        if (gameTime % 100 < deltaTime) { // 每0.1秒增加1分
-            score++;
+        // 累加游戏计时
+        timeElapsed += deltaTime;
+        // 每100毫秒更新一次显示，减少性能消耗
+        if (gameTime % 100 < deltaTime) {
             updateScore();
         }
         
@@ -230,6 +281,49 @@ function updateClouds(dt) {
     bgCloud2.style.left = `${cloudPositions[1]}px`;
 }
 
+// 更新地铁车厢震动效果
+function updateTrainBounce(dt) {
+    // 更新主要震动相位
+    trainBouncePhase += TRAIN_BOUNCE_SPEED * dt;
+    
+    // 更新次要震动相位
+    trainSecondaryBouncePhase += TRAIN_BOUNCE_SECONDARY_SPEED * dt;
+    
+    // 主要低频震动 + 次要高频小幅度震动，模拟真实地铁运行效果
+    const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
+    const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
+    
+    // 随机震动效果（模拟地铁轨道接缝或不平整路段）
+    randomBounceTimer -= dt;
+    if (randomBounceTimer <= 0) {
+        // 每隔 2-5 秒生成一次随机震动
+        randomBounceTimer = Math.random() * 3000 + 2000;
+        randomBounceOffset = (Math.random() * 2 - 1) * 5; // -5 到 5 的随机值
+    }
+    
+    // 若有随机震动，随时间逐渐衰减
+    if (Math.abs(randomBounceOffset) > 0.1) {
+        randomBounceOffset *= 0.95; // 震动衰减
+    } else {
+        randomBounceOffset = 0;
+    }
+    
+    // 计算总的偏移量
+    const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
+    
+    // 应用偏移量到背景图片
+    bgTrain.style.transform = `translateY(${totalOffset}px)`;
+    
+    // 同步应用偏移量到女孩图片（使其与地铁背景同步震动）
+    if (!isGameStarted || isGameOver) {
+        // 如果游戏未开始或已结束，只应用translateY变换
+        girlBody.style.transform = `translateY(${totalOffset}px)`;
+    } else {
+        // 如果游戏正在进行中，需要同时保持旋转角度和应用震动效果
+        girlBody.style.transform = `translateY(${totalOffset}px) rotate(${angle}deg)`;
+    }
+}
+
 // 更新游戏状态
 function update(dt) {
     // 根据按钮输入更新角速度
@@ -249,8 +343,13 @@ function update(dt) {
     // 更新角度
     angle += angularVelocity;
     
-    // 旋转女孩图片
-    girlBody.style.transform = `rotate(${angle}deg)`;
+    // 获取当前震动偏移量（确保与updateTrainBounce中计算的一致）
+    const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
+    const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
+    const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
+    
+    // 旋转女孩图片（同时保持震动效果）
+    girlBody.style.transform = `translateY(${totalOffset}px) rotate(${angle}deg)`;
     
     // 检查游戏是否结束
     if (Math.abs(angle) > MAX_ANGLE) {
@@ -275,7 +374,7 @@ function updateDisplay() {
 
 // 更新分数显示
 function updateScore() {
-    scoreDisplay.textContent = `得分: ${score}`;
+    scoreDisplay.textContent = formatTime(timeElapsed);
 }
 
 // 增加游戏难度
@@ -297,12 +396,34 @@ function gameOver() {
     isGameOver = true;
     
     // 更新最高分
-    if (score > highScore) {
-        highScore = score;
+    if (timeElapsed > highScore) {
+        highScore = timeElapsed;
         localStorage.setItem('highScore', highScore);
     }
     
-    finalScoreDisplay.textContent = `得分: ${score} (最高分: ${highScore})`;
+    // 根据倾斜角度选择结局图片
+    const imageList = angle < 0 ? gameoverImages.left : gameoverImages.right;
+    const selectedImage = getRandomElement(imageList);
+    
+    // 设置图片加载错误处理
+    gameoverImage.onerror = function() {
+        console.error('结局图片加载失败:', selectedImage);
+        // 隐藏图片容器
+        document.getElementById('gameover-image').style.display = 'none';
+    };
+    
+    gameoverImage.onload = function() {
+        // 图片加载成功时显示容器
+        document.getElementById('gameover-image').style.display = 'block';
+    };
+    
+    // 加载图片
+    gameoverImage.src = selectedImage;
+    
+    // 更新分数显示
+    finalScoreDisplay.textContent = `你睡了 ${formatTime(timeElapsed)}`;
+    document.getElementById('best-score').textContent = `历史最佳: ${formatTime(highScore)}`;
+    
     gameOverEl.style.display = 'block';
     
     // 振动反馈（如果设备支持）
@@ -378,8 +499,11 @@ function setupEventListeners() {
     window.addEventListener('resize', () => {
         positionElements();
         if (!isGameStarted) {
-            // 如果游戏还没开始，需要重置女孩的角度
-            girlBody.style.transform = 'rotate(0deg)';
+            // 如果游戏还没开始，需要重置女孩的角度，但保持震动效果
+            const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
+            const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
+            const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
+            girlBody.style.transform = `translateY(${totalOffset}px) rotate(0deg)`;
         }
     });
     
@@ -420,8 +544,11 @@ function init() {
     isGameStarted = false;
     startScreen.style.display = 'flex';
     
-    // 重置女孩的角度
-    girlBody.style.transform = 'rotate(0deg)';
+    // 重置女孩的角度，但保持震动效果
+    const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
+    const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
+    const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
+    girlBody.style.transform = `translateY(${totalOffset}px) rotate(0deg)`;
     
     requestAnimationFrame(gameLoop);
 }
