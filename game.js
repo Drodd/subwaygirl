@@ -414,7 +414,7 @@ function gameOver() {
     
     // 更新分数
     const formattedTime = formatTime(gameTime);
-    finalScoreDisplay.textContent = `她睡了 ${formattedTime}`;
+    finalScoreDisplay.textContent = `坚持睡了 ${formattedTime}`;
     
     // 更新最高分数
     if (gameTime > highScore) {
