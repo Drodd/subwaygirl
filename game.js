@@ -22,7 +22,7 @@ const gameoverImage = document.querySelector('#gameover-image img');
 const MAX_ANGLE = 30; // 最大旋转角度（度）
 const CONTROL_POWER = 0.005; // 初始按钮控制的角速度增量
 const GRAVITY_FACTOR = 0.00005; // 角度越大，角速度增加越快
-const DIFFICULTY_INCREASE_INTERVAL = 10000; // 每隔多少毫秒增加难度
+const DIFFICULTY_INCREASE_INTERVAL = 5000; // 每隔多少毫秒增加难度
 const DIFFICULTY_INCREASE_RATE = 0.000012; // 每次难度增加的幅度
 const CONTROL_INCREASE_RATE = 0.0000012; // 每次控制能力增加的幅度
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
@@ -32,11 +32,6 @@ const TRAIN_BOUNCE_AMPLITUDE = 2; // 震动幅度（像素）
 const TRAIN_BOUNCE_SPEED = 0.0015; // 震动速度（弧度/毫秒）
 const TRAIN_BOUNCE_SECONDARY_AMPLITUDE = 0.7; // 次要震动幅度（像素）
 const TRAIN_BOUNCE_SECONDARY_SPEED = 0.005; // 次要震动速度（弧度/毫秒）
-
-// 音频参数
-const SLOW_DOWN_DURATION = 1.5; // 音乐减速持续时间（秒）
-const SPEED_UP_DURATION = 1.0; // 音乐加速持续时间（秒）
-const MIN_PLAYBACK_RATE = 0.5; // 最低播放速率
 
 // 图片资源信息 - 原始尺寸
 const BG_ORIGINAL_WIDTH = 934; // 背景图片原始宽度
@@ -90,193 +85,6 @@ const gameoverImages = {
     ]
 };
 
-// Web Audio API 相关变量
-let audioContext;
-let audioSource;
-let gainNode;
-let bgmElement;
-let audioContextFailed = false;
-
-// 初始化音频上下文
-function initAudio() {
-    try {
-        // 如果已经初始化过，则不再重复初始化
-        if (audioContext) {
-            console.log('音频上下文已存在，跳过初始化');
-            return;
-        }
-        
-        // 创建音频上下文
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        bgmElement = document.getElementById('bgm');
-        
-        // 创建音频源节点
-        audioSource = audioContext.createMediaElementSource(bgmElement);
-        
-        // 创建增益节点（用于音量控制）
-        gainNode = audioContext.createGain();
-        gainNode.gain.value = 0.5; // 初始音量设为50%
-        
-        // 连接节点: 音源 -> 增益 -> 输出
-        audioSource.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        console.log('音频上下文初始化成功');
-    } catch (error) {
-        console.error('初始化音频上下文失败:', error);
-        // 初始化失败时，设置一个标志，以便后续可以使用备用方案
-        audioContextFailed = true;
-    }
-}
-
-// 播放BGM并设置音量
-function playBGM() {
-    try {
-        // 如果音频上下文初始化失败，使用原生方法播放
-        if (!audioContext || audioContextFailed) {
-            console.log('使用原生方法播放BGM');
-            bgmElement = document.getElementById('bgm');
-            bgmElement.volume = 0.5;
-            bgmElement.playbackRate = 1.0;
-            return bgmElement.play();
-        }
-        
-        // 如果音频上下文处于暂停状态，恢复它
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-        
-        // 确保从正常速率开始
-        bgmElement.playbackRate = 1.0;
-        
-        return bgmElement.play().catch(error => {
-            console.log('BGM自动播放失败:', error);
-            throw error; // 重新抛出错误以便调用者捕获
-        });
-    } catch (error) {
-        console.error('播放BGM失败:', error);
-        return Promise.reject(error);
-    }
-}
-
-// 减速并暂停BGM
-function slowDownAndPauseBGM() {
-    if (!bgmElement || bgmElement.paused) return;
-    
-    // 如果音频上下文初始化失败，直接暂停
-    if (!audioContext || audioContextFailed) {
-        bgmElement.pause();
-        return;
-    }
-    
-    // 记录当前播放速率
-    const startRate = bgmElement.playbackRate || 1.0;
-    const startTime = audioContext.currentTime;
-    const endTime = startTime + SLOW_DOWN_DURATION;
-    
-    // 创建音频参数动画
-    function animateSlowDown() {
-        const now = audioContext.currentTime;
-        if (now < endTime) {
-            // 线性减速，从当前速率减速到最低速率
-            const progress = (now - startTime) / SLOW_DOWN_DURATION;
-            const newRate = startRate - (startRate - MIN_PLAYBACK_RATE) * progress;
-            bgmElement.playbackRate = Math.max(newRate, MIN_PLAYBACK_RATE);
-            
-            // 同时降低音量
-            gainNode.gain.value = 0.5 * (1 - progress);
-            
-            // 继续动画
-            requestAnimationFrame(animateSlowDown);
-        } else {
-            // 动画结束，设置最终状态
-            bgmElement.playbackRate = MIN_PLAYBACK_RATE;
-            gainNode.gain.value = 0;
-            
-            // 暂停BGM
-            bgmElement.pause();
-        }
-    }
-    
-    // 开始动画
-    animateSlowDown();
-}
-
-// 恢复并加速BGM
-function resumeAndSpeedUpBGM() {
-    if (!bgmElement) {
-        bgmElement = document.getElementById('bgm');
-    }
-    
-    // 如果音频上下文初始化失败，使用原生方法播放
-    if (!audioContext || audioContextFailed) {
-        bgmElement.volume = 0.5;
-        bgmElement.playbackRate = 1.0;
-        bgmElement.play().catch(error => {
-            console.error('使用原生方法播放BGM失败:', error);
-        });
-        return;
-    }
-    
-    // 设置初始播放速率为最低速率
-    bgmElement.playbackRate = MIN_PLAYBACK_RATE;
-    
-    // 将增益值设为0，然后慢慢增加
-    if (gainNode) {
-        gainNode.gain.value = 0;
-    }
-    
-    // 尝试播放
-    bgmElement.play().then(() => {
-        const startTime = audioContext.currentTime;
-        const endTime = startTime + SPEED_UP_DURATION;
-        
-        // 创建音频参数动画
-        function animateSpeedUp() {
-            const now = audioContext.currentTime;
-            if (now < endTime) {
-                // 线性加速，从最低速率加速到正常速率
-                const progress = (now - startTime) / SPEED_UP_DURATION;
-                const newRate = MIN_PLAYBACK_RATE + (1.0 - MIN_PLAYBACK_RATE) * progress;
-                bgmElement.playbackRate = Math.min(newRate, 1.0);
-                
-                // 同时增加音量
-                if (gainNode) {
-                    gainNode.gain.value = 0.5 * progress;
-                } else {
-                    bgmElement.volume = 0.5 * progress;
-                }
-                
-                // 继续动画
-                requestAnimationFrame(animateSpeedUp);
-            } else {
-                // 动画结束，设置最终状态
-                bgmElement.playbackRate = 1.0;
-                if (gainNode) {
-                    gainNode.gain.value = 0.5;
-                } else {
-                    bgmElement.volume = 0.5;
-                }
-            }
-        }
-        
-        // 开始动画
-        animateSpeedUp();
-    }).catch(error => {
-        console.error('恢复BGM失败，尝试直接播放:', error);
-        // 如果加速播放失败，尝试直接播放
-        bgmElement.playbackRate = 1.0;
-        if (gainNode) {
-            gainNode.gain.value = 0.5;
-        } else {
-            bgmElement.volume = 0.5;
-        }
-        bgmElement.play().catch(error => {
-            console.error('直接播放BGM也失败:', error);
-        });
-    });
-}
-
 // 随机获取数组中的一个元素
 function getRandomElement(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -308,7 +116,13 @@ function initGame() {
     randomBounceTimer = 0; // 重置随机震动计时器
     randomBounceOffset = 0; // 重置随机震动偏移量
     
-    // 注意：BGM将在事件处理程序中播放，这里不直接调用playBGM
+    // 播放背景音乐
+    const bgm = document.getElementById('bgm');
+    bgm.volume = 0.5; // 设置音量为50%
+    bgm.play().catch(error => {
+        console.log('BGM自动播放失败:', error);
+        // 在移动设备上可能需要用户交互才能播放音频
+    });
     
     // 设置元素位置
     positionElements();
@@ -595,7 +409,8 @@ function gameOver() {
     isGameOver = true;
     
     // 暂停背景音乐
-    slowDownAndPauseBGM();
+    const bgm = document.getElementById('bgm');
+    bgm.pause();
     
     // 更新分数
     const formattedTime = formatTime(gameTime);
@@ -615,22 +430,29 @@ function gameOver() {
     const imageList = angle < 0 ? gameoverImages.left : gameoverImages.right;
     const selectedImage = getRandomElement(imageList);
     
+    // 获取图片容器元素
+    const gameoverImageContainer = document.getElementById('gameover-image');
+    
+    // 预设图片容器的最小高度，防止布局跳动
+    gameoverImageContainer.style.minHeight = '150px';
+    gameoverImageContainer.style.display = 'block';
+    
     // 设置图片加载错误处理
     gameoverImage.onerror = function() {
         console.error('结局图片加载失败:', selectedImage);
         // 隐藏图片容器
-        document.getElementById('gameover-image').style.display = 'none';
+        gameoverImageContainer.style.display = 'none';
     };
     
     gameoverImage.onload = function() {
-        // 图片加载成功时显示容器
-        document.getElementById('gameover-image').style.display = 'block';
+        // 图片加载成功时显示容器，但不改变容器尺寸
+        gameoverImageContainer.style.display = 'block';
     };
     
     // 加载图片
     gameoverImage.src = selectedImage;
     
-    // 先显示毛玻璃背景，再显示游戏结束界面
+    // 先显示毛玻璃背景
     gameOverOverlay.style.display = 'block';
     
     // 触发淡入动画
@@ -644,6 +466,9 @@ function gameOver() {
         gameOverEl.style.animation = 'none';
         void gameOverEl.offsetHeight; // 触发重排
         gameOverEl.style.animation = 'pop-in 0.6s ease-out, float 3s ease-in-out 0.6s infinite';
+        
+        // 确保按钮事件监听器正常工作
+        restartBtn.style.pointerEvents = 'auto';
         
         // 显示结算弹窗
         gameOverEl.style.display = 'block';
@@ -710,12 +535,11 @@ function handleMobileInitialization() {
 function setupEventListeners() {
     // 开始按钮
     startBtn.addEventListener('click', function() {
-        // 初始化音频上下文（如果尚未初始化）
-        initAudio();
-        
         initGame();
-        // 尝试播放BGM（响应用户交互），使用加速效果
-        resumeAndSpeedUpBGM();
+        // 尝试播放BGM（响应用户交互）
+        document.getElementById('bgm').play().catch(error => {
+            console.log('BGM播放失败:', error);
+        });
     });
     
     // 图片加载完成事件
@@ -729,9 +553,7 @@ function setupEventListeners() {
         e.preventDefault();
         // 如果游戏已经开始但BGM没有播放，尝试播放
         if (isGameStarted && document.getElementById('bgm').paused) {
-            // 初始化音频上下文（如果尚未初始化）
-            initAudio();
-            resumeAndSpeedUpBGM();
+            document.getElementById('bgm').play().catch(() => {});
         }
     }, { passive: false });
     
@@ -765,9 +587,7 @@ function setupEventListeners() {
         leftPressed = true; 
         // 如果游戏已经开始但BGM没有播放，尝试播放
         if (isGameStarted && document.getElementById('bgm').paused) {
-            // 初始化音频上下文（如果尚未初始化）
-            initAudio();
-            resumeAndSpeedUpBGM();
+            document.getElementById('bgm').play().catch(() => {});
         }
     });
     leftBtn.addEventListener('mouseup', () => { leftPressed = false; });
@@ -777,23 +597,67 @@ function setupEventListeners() {
         rightPressed = true; 
         // 如果游戏已经开始但BGM没有播放，尝试播放
         if (isGameStarted && document.getElementById('bgm').paused) {
-            // 初始化音频上下文（如果尚未初始化）
-            initAudio();
-            resumeAndSpeedUpBGM();
+            document.getElementById('bgm').play().catch(() => {});
         }
     });
     rightBtn.addEventListener('mouseup', () => { rightPressed = false; });
     rightBtn.addEventListener('mouseleave', () => { rightPressed = false; });
     
     // 重新开始按钮
-    restartBtn.addEventListener('click', function() {
-        // 初始化音频上下文（如果尚未初始化）
-        initAudio();
+    restartBtn.addEventListener('click', function(e) {
+        // 防止事件冒泡
+        e.stopPropagation();
+        // 标记点击状态，防止重复点击
+        if (this.getAttribute('data-clicked') === 'true') return;
+        this.setAttribute('data-clicked', 'true');
         
+        // 视觉反馈
+        this.style.transform = 'scale(0.95)';
+        
+        // 重置游戏
         initGame();
-        // 尝试播放BGM（响应用户交互），使用加速效果
-        resumeAndSpeedUpBGM();
+        
+        // 尝试播放BGM（响应用户交互）
+        document.getElementById('bgm').play().catch(() => {});
+        
+        // 重置按钮状态
+        setTimeout(() => {
+            this.removeAttribute('data-clicked');
+            this.style.transform = '';
+        }, 300);
     });
+    
+    // 为整个结算界面添加点击事件，在按钮区域也能响应点击
+    gameOverEl.addEventListener('click', function(e) {
+        // 检查点击位置是否在按钮范围内
+        const btnRect = restartBtn.getBoundingClientRect();
+        const clickX = e.clientX;
+        const clickY = e.clientY;
+        
+        if (clickX >= btnRect.left && clickX <= btnRect.right && 
+            clickY >= btnRect.top && clickY <= btnRect.bottom) {
+            // 模拟按钮点击
+            restartBtn.click();
+        }
+    });
+    
+    // 添加触摸事件处理
+    gameOverEl.addEventListener('touchend', function(e) {
+        // 防止默认行为，如页面滚动
+        e.preventDefault();
+        
+        // 检查触摸结束位置是否在按钮范围内
+        const btnRect = restartBtn.getBoundingClientRect();
+        const touch = e.changedTouches[0];
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
+        
+        if (touchX >= btnRect.left && touchX <= btnRect.right && 
+            touchY >= btnRect.top && touchY <= btnRect.bottom) {
+            // 模拟按钮点击
+            restartBtn.click();
+        }
+    }, { passive: false });
     
     // 窗口大小调整
     window.addEventListener('resize', () => {
@@ -821,34 +685,24 @@ function setupEventListeners() {
             leftPressed = true;
             // 尝试播放BGM
             if (isGameStarted && document.getElementById('bgm').paused) {
-                // 初始化音频上下文（如果尚未初始化）
-                initAudio();
-                resumeAndSpeedUpBGM();
+                document.getElementById('bgm').play().catch(() => {});
             }
         } else if (e.key === 'ArrowRight') {
             rightPressed = true;
             // 尝试播放BGM
             if (isGameStarted && document.getElementById('bgm').paused) {
-                // 初始化音频上下文（如果尚未初始化）
-                initAudio();
-                resumeAndSpeedUpBGM();
-            } else if (e.key === ' ' && !isGameStarted) {
-                // 初始化音频上下文（如果尚未初始化）
-                initAudio();
-                
-                // 空格键开始游戏
-                initGame();
-                // 尝试播放BGM，使用加速效果
-                resumeAndSpeedUpBGM();
-            } else if (e.key === ' ' && isGameOver) {
-                // 初始化音频上下文（如果尚未初始化）
-                initAudio();
-                
-                // 空格键重新开始游戏
-                initGame();
-                // 尝试播放BGM，使用加速效果
-                resumeAndSpeedUpBGM();
+                document.getElementById('bgm').play().catch(() => {});
             }
+        } else if (e.key === ' ' && !isGameStarted) {
+            // 空格键开始游戏
+            initGame();
+            // 尝试播放BGM
+            document.getElementById('bgm').play().catch(() => {});
+        } else if (e.key === ' ' && isGameOver) {
+            // 空格键重新开始游戏
+            initGame();
+            // 尝试播放BGM
+            document.getElementById('bgm').play().catch(() => {});
         }
     });
     
@@ -879,8 +733,6 @@ function setupEventListeners() {
 
 // 初始化
 function init() {
-    // 音频上下文将在用户首次交互时初始化，而不是在这里
-    
     setupEventListeners();
     positionElements();
     // 游戏开始时显示开始界面，而不是直接开始游戏
