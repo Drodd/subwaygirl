@@ -34,6 +34,23 @@
             background-color: white;
         }
         
+        #bg-cloud-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            overflow: hidden;
+        }
+        
+        .bg-cloud {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            object-fit: cover;
+        }
+        
         #bg-train {
             position: absolute;
             top: 0;
@@ -280,6 +297,10 @@
 </head>
 <body>
     <div id="game-container">
+        <div id="bg-cloud-container">
+            <img class="bg-cloud" id="bg-cloud-1" src="img/img_bg_cloud.png" alt="云层背景">
+            <img class="bg-cloud" id="bg-cloud-2" src="img/img_bg_cloud.png" alt="云层背景">
+        </div>
         <img id="bg-train" src="img/img_bg_train.png" alt="地铁背景">
         <img id="girl-body" src="img/img_girl_body.png" alt="女孩身体">
         <div id="anchor"></div>

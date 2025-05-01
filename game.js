@@ -1,6 +1,8 @@
 // 获取DOM元素
 const girlBody = document.getElementById('girl-body');
 const bgTrain = document.getElementById('bg-train');
+const bgCloud1 = document.getElementById('bg-cloud-1');
+const bgCloud2 = document.getElementById('bg-cloud-2');
 const anchor = document.getElementById('anchor');
 const leftBtn = document.getElementById('left-btn');
 const rightBtn = document.getElementById('right-btn');
@@ -22,12 +24,15 @@ const DIFFICULTY_INCREASE_INTERVAL = 1000; // 每隔多少毫秒增加难度
 const DIFFICULTY_INCREASE_RATE = 0.000012; // 每次难度增加的幅度
 const CONTROL_INCREASE_RATE = 0.000008; // 每次控制能力增加的幅度（约为难度增加的60%-70%）
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
+const CLOUD_SPEED = 0.05; // 云层移动速度（像素/毫秒）
 
 // 图片资源信息 - 原始尺寸
 const BG_ORIGINAL_WIDTH = 934; // 背景图片原始宽度
 const BG_ORIGINAL_HEIGHT = 1317; // 背景图片原始高度
 const GIRL_ORIGINAL_WIDTH = 218; // 女孩图片原始宽度
 const GIRL_ORIGINAL_HEIGHT = 344; // 女孩图片原始高度
+const CLOUD_ORIGINAL_WIDTH = 934; // 云层图片原始宽度
+const CLOUD_ORIGINAL_HEIGHT = 581; // 云层图片原始高度
 
 // 女孩在背景图中的位置比例 (相对于背景图的原始尺寸)
 const GIRL_POSITION_X_RATIO = 0.51; // 女孩在背景图中的水平位置比例（居中）
@@ -50,10 +55,12 @@ let gameTime = 0;
 let currentGravityFactor = GRAVITY_FACTOR;
 let currentControlPower = CONTROL_POWER; // 当前控制能力
 let highScore = localStorage.getItem('highScore') || 0;
+let cloudPositions = [0, 0]; // 两张云层图片的位置
+let cloudWidth = 0; // 云层图片的宽度（将在positionElements中计算）
 
 // 等待图片加载完成
 let imagesLoaded = 0;
-const requiredImages = 2; // 背景和女孩图片
+const requiredImages = 3; // 背景、女孩和云层图片
 
 // 初始化游戏
 function initGame() {
@@ -117,6 +124,23 @@ function positionElements() {
     bgTrain.style.height = '100%';
     bgTrain.style.objectFit = 'cover';
     
+    // 设置云层背景
+    cloudWidth = CLOUD_ORIGINAL_WIDTH * bgScaleFactor;
+    const cloudHeight = CLOUD_ORIGINAL_HEIGHT * bgScaleFactor;
+    
+    // 初始化云层位置（第一张从0开始，第二张紧接着第一张）
+    cloudPositions[0] = 0;
+    cloudPositions[1] = cloudWidth;
+    
+    // 设置云层图片的尺寸和位置
+    bgCloud1.style.width = `${cloudWidth}px`;
+    bgCloud1.style.height = `${cloudHeight}px`;
+    bgCloud1.style.left = `${cloudPositions[0]}px`;
+    
+    bgCloud2.style.width = `${cloudWidth}px`;
+    bgCloud2.style.height = `${cloudHeight}px`;
+    bgCloud2.style.left = `${cloudPositions[1]}px`;
+    
     // 使用背景图片的缩放系数来计算女孩图片的尺寸
     const girlWidth = GIRL_ORIGINAL_WIDTH * bgScaleFactor;
     const girlHeight = GIRL_ORIGINAL_HEIGHT * bgScaleFactor;
@@ -162,6 +186,9 @@ function gameLoop(timestamp) {
     deltaTime = timestamp - lastTime;
     lastTime = timestamp;
     
+    // 更新云层位置（无论游戏是否开始）
+    updateClouds(deltaTime);
+    
     if (isGameStarted && !isGameOver) {
         update(deltaTime);
         updateDisplay();
@@ -180,6 +207,27 @@ function gameLoop(timestamp) {
     }
     
     requestAnimationFrame(gameLoop);
+}
+
+// 更新云层位置
+function updateClouds(dt) {
+    // 更新两张云层图片的位置
+    cloudPositions[0] -= CLOUD_SPEED * dt;
+    cloudPositions[1] -= CLOUD_SPEED * dt;
+    
+    // 无缝衔接逻辑：当第一张图片完全移出屏幕左侧时，将其移动到第二张图片的右侧
+    if (cloudPositions[0] <= -cloudWidth) {
+        cloudPositions[0] = cloudPositions[1] + cloudWidth;
+    }
+    
+    // 同样，当第二张图片完全移出屏幕左侧时，将其移动到第一张图片的右侧
+    if (cloudPositions[1] <= -cloudWidth) {
+        cloudPositions[1] = cloudPositions[0] + cloudWidth;
+    }
+    
+    // 更新云层元素的位置
+    bgCloud1.style.left = `${cloudPositions[0]}px`;
+    bgCloud2.style.left = `${cloudPositions[1]}px`;
 }
 
 // 更新游戏状态
@@ -281,6 +329,7 @@ function setupEventListeners() {
     // 图片加载完成事件
     bgTrain.addEventListener('load', imageLoaded);
     girlBody.addEventListener('load', imageLoaded);
+    bgCloud1.addEventListener('load', imageLoaded);
     
     // 触摸控制（针对移动设备优化）
     leftBtn.addEventListener('touchstart', (e) => { 
@@ -378,7 +427,7 @@ function init() {
 }
 
 // 检查图片是否已经被缓存
-if (bgTrain.complete && girlBody.complete) {
+if (bgTrain.complete && girlBody.complete && bgCloud1.complete) {
     // 图片已经加载，直接初始化
     imagesLoaded = requiredImages;
     loadingScreen.style.display = 'none';
@@ -390,6 +439,7 @@ if (bgTrain.complete && girlBody.complete) {
         if (imagesLoaded < requiredImages) {
             if (bgTrain.complete) imageLoaded();
             if (girlBody.complete) imageLoaded();
+            if (bgCloud1.complete) imageLoaded();
         }
     });
 } 
