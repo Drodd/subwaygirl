@@ -27,9 +27,9 @@ const CONTROL_INCREASE_RATE = 0.000008; // 每次控制能力增加的幅度（�
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
 const CLOUD_SPEED = 0.05; // 云层移动速度（像素/毫秒）
 // 地铁车厢震动参数
-const TRAIN_BOUNCE_AMPLITUDE = 3; // 震动幅度（像素）
+const TRAIN_BOUNCE_AMPLITUDE = 2; // 震动幅度（像素）
 const TRAIN_BOUNCE_SPEED = 0.0015; // 震动速度（弧度/毫秒）
-const TRAIN_BOUNCE_SECONDARY_AMPLITUDE = 1; // 次要震动幅度（像素）
+const TRAIN_BOUNCE_SECONDARY_AMPLITUDE = 0.7; // 次要震动幅度（像素）
 const TRAIN_BOUNCE_SECONDARY_SPEED = 0.005; // 次要震动速度（弧度/毫秒）
 
 // 图片资源信息 - 原始尺寸
@@ -148,13 +148,13 @@ function positionElements() {
     
     if (containerAspectRatio > bgAspectRatio) {
         // 如果容器比背景更宽，以宽度为基准缩放
-        bgScaleFactor = containerWidth / BG_ORIGINAL_WIDTH * 1.1; // 设置为屏幕宽度的1.1倍，预留震动空间
-        bgDisplayWidth = containerWidth * 1.1;
+        bgScaleFactor = containerWidth / BG_ORIGINAL_WIDTH * 1.05; // 设置为屏幕宽度的1.05倍，预留震动空间
+        bgDisplayWidth = containerWidth * 1.05;
         bgDisplayHeight = BG_ORIGINAL_HEIGHT * bgScaleFactor;
     } else {
         // 如果容器比背景更高，以高度为基准缩放
         bgScaleFactor = containerHeight / BG_ORIGINAL_HEIGHT;
-        bgDisplayWidth = BG_ORIGINAL_WIDTH * bgScaleFactor * 1.1; // 设置为宽度的1.1倍，预留震动空间
+        bgDisplayWidth = BG_ORIGINAL_WIDTH * bgScaleFactor * 1.05; // 设置为宽度的1.05倍，预留震动空间
         bgDisplayHeight = containerHeight;
     }
     
@@ -163,12 +163,12 @@ function positionElements() {
     const bgOffsetY = (containerHeight - bgDisplayHeight) / 2;
     
     // 调整背景图片尺寸
-    bgTrain.style.width = '110%'; // 设置为110%以便有空间进行震动
-    bgTrain.style.height = '110%';
+    bgTrain.style.width = '105%'; // 设置为105%以便有空间进行震动
+    bgTrain.style.height = '105%';
     bgTrain.style.objectFit = 'cover';
     bgTrain.style.position = 'absolute';
-    bgTrain.style.left = '-5%'; // 将图片向左偏移5%，以便震动时不会露出背景
-    bgTrain.style.top = '-5%';  // 将图片向上偏移5%，以便震动时不会露出背景
+    bgTrain.style.left = '-2.5%'; // 将图片向左偏移2.5%，以便震动时不会露出背景
+    bgTrain.style.top = '-2.5%';  // 将图片向上偏移2.5%，以便震动时不会露出背景
     
     // 设置云层背景
     cloudWidth = CLOUD_ORIGINAL_WIDTH * bgScaleFactor;
@@ -298,7 +298,7 @@ function updateTrainBounce(dt) {
     if (randomBounceTimer <= 0) {
         // 每隔 2-5 秒生成一次随机震动
         randomBounceTimer = Math.random() * 3000 + 2000;
-        randomBounceOffset = (Math.random() * 2 - 1) * 5; // -5 到 5 的随机值
+        randomBounceOffset = (Math.random() * 2 - 1) * 3; // -3 到 3 的随机值
     }
     
     // 若有随机震动，随时间逐渐衰减
