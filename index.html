@@ -142,20 +142,76 @@
             border-bottom: 20px solid transparent;
         }
         
+        /* 毛玻璃效果 */
+        .glass-effect {
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        #game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 99;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+        }
+        
+        #game-over-overlay.show {
+            opacity: 1;
+        }
+        
+        @keyframes pop-in {
+            0% {
+                transform: translate(-50%, -50%) scale(0.5);
+                opacity: 0;
+            }
+            40% {
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 1;
+            }
+            60% {
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            80% {
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translate(-50%, -50%) translateY(0);
+            }
+            50% {
+                transform: translate(-50%, -50%) translateY(-8px);
+            }
+        }
+        
         #game-over {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #333;
             padding: 30px;
             border-radius: 15px;
             text-align: center;
             display: none;
             z-index: 100;
             min-width: 250px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            animation: pop-in 0.6s ease-out, float 3s ease-in-out 0.6s infinite;
+            transform-origin: center center;
         }
         
         #restart-btn, #start-btn {
@@ -172,9 +228,47 @@
             transition: background-color 0.2s, transform 0.1s;
         }
         
+        @keyframes button-pop {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.1);
+            }
+            80% {
+                transform: scale(0.95);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        #restart-btn {
+            animation: button-pop 0.5s ease-out 0.8s both;
+        }
+        
         #restart-btn:active, #start-btn:active {
             background-color: #3367d6;
             transform: scale(0.98);
+        }
+        
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        #final-score, #best-score {
+            animation: fade-in 0.4s ease-out 0.4s backwards;
+        }
+        
+        #gameover-image {
+            animation: fade-in 0.4s ease-out 0.6s backwards;
         }
         
         #angle-display {
@@ -194,7 +288,7 @@
         
         #score-display {
             position: absolute;
-            top: 40px;
+            top: 60px;
             left: 50%;
             transform: translateX(-50%);
             font-family: 'Roboto Mono', monospace;
@@ -214,7 +308,6 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -222,20 +315,27 @@
             z-index: 200;
             padding: 20px;
             text-align: center;
-            color: white;
+        }
+        
+        .start-content {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 80%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
         
         #start-screen h1 {
             margin-bottom: 20px;
-            color: white;
+            color: #333;
             font-size: 32px;
-            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         
         #start-screen p {
             margin-bottom: 15px;
             max-width: 600px;
-            color: rgba(255, 255, 255, 0.9);
+            color: #555;
             line-height: 1.5;
             font-size: 16px;
         }
@@ -317,20 +417,34 @@
         <div id="score-display">00:00.0</div>
         <div class="angle-indicator" id="left-indicator"></div>
         <div class="angle-indicator" id="right-indicator"></div>
+        
+        <!-- 结算弹窗毛玻璃背景 -->
+        <div id="game-over-overlay" class="glass-effect"></div>
+        
+        <!-- 添加音频元素播放BGM -->
+        <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+        
         <div id="game-over">
-            <h2>你醒了！</h2>
-            <p id="final-score" style="font-size: 20px; margin: 10px 0;">你睡了 00:00.0</p>
-            <p id="best-score" style="font-size: 16px; color: #aaa; margin-bottom: 20px;">历史最佳: 00:00.0</p>
+            <h2>她醒了！</h2>
+            <p id="final-score" style="font-size: 20px; margin: 10px 0;">她睡了 00:00.0</p>
+            <p id="best-score" style="font-size: 16px; color: #777; margin-bottom: 20px;">历史最佳: 00:00.0</p>
             <div id="gameover-image" style="margin: 20px 0; border-radius: 15px; overflow: hidden;">
                 <img src="" alt="游戏结束场景" style="max-width: 100%; height: auto;">
             </div>
             <button id="restart-btn" style="background-color: #4285f4; color: white; padding: 12px 30px; border: none; border-radius: 25px; font-size: 18px; cursor: pointer; transition: transform 0.2s;">接着睡</button>
         </div>
-        <div id="start-screen">
-            <h1>地铁睡神</h1>
-            <p>你在地铁上睡着了，使用左右按钮来保持平衡。</p>
-            <button id="start-btn">开始游戏</button>
+        
+        <!-- 开始界面毛玻璃效果 -->
+        <div id="start-screen" class="glass-effect">
+            <div class="start-content">
+                <h1>地铁睡神</h1>
+                <p>小女孩在地铁上睡着了...</p>
+                <p>用左右按钮保持平衡，避免撞到旁边的乘客</p>
+                <p>尽可能让她多睡一会吧！</p>
+                <button id="start-btn">开始游戏</button>
+            </div>
         </div>
+        
         <div id="loading">
             <div class="spinner"></div>
             <p>正在加载游戏资源...</p>

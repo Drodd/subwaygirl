@@ -7,6 +7,7 @@ const anchor = document.getElementById('anchor');
 const leftBtn = document.getElementById('left-btn');
 const rightBtn = document.getElementById('right-btn');
 const gameOverEl = document.getElementById('game-over');
+const gameOverOverlay = document.getElementById('game-over-overlay');
 const restartBtn = document.getElementById('restart-btn');
 const angleDisplay = document.getElementById('angle-display');
 const scoreDisplay = document.getElementById('score-display');
@@ -21,9 +22,9 @@ const gameoverImage = document.querySelector('#gameover-image img');
 const MAX_ANGLE = 30; // 最大旋转角度（度）
 const CONTROL_POWER = 0.005; // 初始按钮控制的角速度增量
 const GRAVITY_FACTOR = 0.00005; // 角度越大，角速度增加越快
-const DIFFICULTY_INCREASE_INTERVAL = 1000; // 每隔多少毫秒增加难度
+const DIFFICULTY_INCREASE_INTERVAL = 10000; // 每隔多少毫秒增加难度
 const DIFFICULTY_INCREASE_RATE = 0.000012; // 每次难度增加的幅度
-const CONTROL_INCREASE_RATE = 0.000008; // 每次控制能力增加的幅度（约为难度增加的60%-70%）
+const CONTROL_INCREASE_RATE = 0.0000012; // 每次控制能力增加的幅度
 const DAMPING = 0.995; // 阻尼系数，控制晃动的感觉
 const CLOUD_SPEED = 0.05; // 云层移动速度（像素/毫秒）
 // 地铁车厢震动参数
@@ -31,6 +32,11 @@ const TRAIN_BOUNCE_AMPLITUDE = 2; // 震动幅度（像素）
 const TRAIN_BOUNCE_SPEED = 0.0015; // 震动速度（弧度/毫秒）
 const TRAIN_BOUNCE_SECONDARY_AMPLITUDE = 0.7; // 次要震动幅度（像素）
 const TRAIN_BOUNCE_SECONDARY_SPEED = 0.005; // 次要震动速度（弧度/毫秒）
+
+// 音频参数
+const SLOW_DOWN_DURATION = 1.5; // 音乐减速持续时间（秒）
+const SPEED_UP_DURATION = 1.0; // 音乐加速持续时间（秒）
+const MIN_PLAYBACK_RATE = 0.5; // 最低播放速率
 
 // 图片资源信息 - 原始尺寸
 const BG_ORIGINAL_WIDTH = 934; // 背景图片原始宽度
@@ -84,6 +90,193 @@ const gameoverImages = {
     ]
 };
 
+// Web Audio API 相关变量
+let audioContext;
+let audioSource;
+let gainNode;
+let bgmElement;
+let audioContextFailed = false;
+
+// 初始化音频上下文
+function initAudio() {
+    try {
+        // 如果已经初始化过，则不再重复初始化
+        if (audioContext) {
+            console.log('音频上下文已存在，跳过初始化');
+            return;
+        }
+        
+        // 创建音频上下文
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        bgmElement = document.getElementById('bgm');
+        
+        // 创建音频源节点
+        audioSource = audioContext.createMediaElementSource(bgmElement);
+        
+        // 创建增益节点（用于音量控制）
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.5; // 初始音量设为50%
+        
+        // 连接节点: 音源 -> 增益 -> 输出
+        audioSource.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        console.log('音频上下文初始化成功');
+    } catch (error) {
+        console.error('初始化音频上下文失败:', error);
+        // 初始化失败时，设置一个标志，以便后续可以使用备用方案
+        audioContextFailed = true;
+    }
+}
+
+// 播放BGM并设置音量
+function playBGM() {
+    try {
+        // 如果音频上下文初始化失败，使用原生方法播放
+        if (!audioContext || audioContextFailed) {
+            console.log('使用原生方法播放BGM');
+            bgmElement = document.getElementById('bgm');
+            bgmElement.volume = 0.5;
+            bgmElement.playbackRate = 1.0;
+            return bgmElement.play();
+        }
+        
+        // 如果音频上下文处于暂停状态，恢复它
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+        
+        // 确保从正常速率开始
+        bgmElement.playbackRate = 1.0;
+        
+        return bgmElement.play().catch(error => {
+            console.log('BGM自动播放失败:', error);
+            throw error; // 重新抛出错误以便调用者捕获
+        });
+    } catch (error) {
+        console.error('播放BGM失败:', error);
+        return Promise.reject(error);
+    }
+}
+
+// 减速并暂停BGM
+function slowDownAndPauseBGM() {
+    if (!bgmElement || bgmElement.paused) return;
+    
+    // 如果音频上下文初始化失败，直接暂停
+    if (!audioContext || audioContextFailed) {
+        bgmElement.pause();
+        return;
+    }
+    
+    // 记录当前播放速率
+    const startRate = bgmElement.playbackRate || 1.0;
+    const startTime = audioContext.currentTime;
+    const endTime = startTime + SLOW_DOWN_DURATION;
+    
+    // 创建音频参数动画
+    function animateSlowDown() {
+        const now = audioContext.currentTime;
+        if (now < endTime) {
+            // 线性减速，从当前速率减速到最低速率
+            const progress = (now - startTime) / SLOW_DOWN_DURATION;
+            const newRate = startRate - (startRate - MIN_PLAYBACK_RATE) * progress;
+            bgmElement.playbackRate = Math.max(newRate, MIN_PLAYBACK_RATE);
+            
+            // 同时降低音量
+            gainNode.gain.value = 0.5 * (1 - progress);
+            
+            // 继续动画
+            requestAnimationFrame(animateSlowDown);
+        } else {
+            // 动画结束，设置最终状态
+            bgmElement.playbackRate = MIN_PLAYBACK_RATE;
+            gainNode.gain.value = 0;
+            
+            // 暂停BGM
+            bgmElement.pause();
+        }
+    }
+    
+    // 开始动画
+    animateSlowDown();
+}
+
+// 恢复并加速BGM
+function resumeAndSpeedUpBGM() {
+    if (!bgmElement) {
+        bgmElement = document.getElementById('bgm');
+    }
+    
+    // 如果音频上下文初始化失败，使用原生方法播放
+    if (!audioContext || audioContextFailed) {
+        bgmElement.volume = 0.5;
+        bgmElement.playbackRate = 1.0;
+        bgmElement.play().catch(error => {
+            console.error('使用原生方法播放BGM失败:', error);
+        });
+        return;
+    }
+    
+    // 设置初始播放速率为最低速率
+    bgmElement.playbackRate = MIN_PLAYBACK_RATE;
+    
+    // 将增益值设为0，然后慢慢增加
+    if (gainNode) {
+        gainNode.gain.value = 0;
+    }
+    
+    // 尝试播放
+    bgmElement.play().then(() => {
+        const startTime = audioContext.currentTime;
+        const endTime = startTime + SPEED_UP_DURATION;
+        
+        // 创建音频参数动画
+        function animateSpeedUp() {
+            const now = audioContext.currentTime;
+            if (now < endTime) {
+                // 线性加速，从最低速率加速到正常速率
+                const progress = (now - startTime) / SPEED_UP_DURATION;
+                const newRate = MIN_PLAYBACK_RATE + (1.0 - MIN_PLAYBACK_RATE) * progress;
+                bgmElement.playbackRate = Math.min(newRate, 1.0);
+                
+                // 同时增加音量
+                if (gainNode) {
+                    gainNode.gain.value = 0.5 * progress;
+                } else {
+                    bgmElement.volume = 0.5 * progress;
+                }
+                
+                // 继续动画
+                requestAnimationFrame(animateSpeedUp);
+            } else {
+                // 动画结束，设置最终状态
+                bgmElement.playbackRate = 1.0;
+                if (gainNode) {
+                    gainNode.gain.value = 0.5;
+                } else {
+                    bgmElement.volume = 0.5;
+                }
+            }
+        }
+        
+        // 开始动画
+        animateSpeedUp();
+    }).catch(error => {
+        console.error('恢复BGM失败，尝试直接播放:', error);
+        // 如果加速播放失败，尝试直接播放
+        bgmElement.playbackRate = 1.0;
+        if (gainNode) {
+            gainNode.gain.value = 0.5;
+        } else {
+            bgmElement.volume = 0.5;
+        }
+        bgmElement.play().catch(error => {
+            console.error('直接播放BGM也失败:', error);
+        });
+    });
+}
+
 // 随机获取数组中的一个元素
 function getRandomElement(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -115,12 +308,16 @@ function initGame() {
     randomBounceTimer = 0; // 重置随机震动计时器
     randomBounceOffset = 0; // 重置随机震动偏移量
     
+    // 注意：BGM将在事件处理程序中播放，这里不直接调用playBGM
+    
     // 设置元素位置
     positionElements();
     
     // 隐藏开始和结束界面
     startScreen.style.display = 'none';
     gameOverEl.style.display = 'none';
+    gameOverOverlay.style.display = 'none';
+    gameOverOverlay.classList.remove('show');
     
     // 更新显示
     updateDisplay();
@@ -393,13 +590,26 @@ function increaseDifficulty() {
 
 // 游戏结束
 function gameOver() {
+    if (isGameOver) return;
+    
     isGameOver = true;
     
-    // 更新最高分
-    if (timeElapsed > highScore) {
-        highScore = timeElapsed;
+    // 暂停背景音乐
+    slowDownAndPauseBGM();
+    
+    // 更新分数
+    const formattedTime = formatTime(gameTime);
+    finalScoreDisplay.textContent = `她睡了 ${formattedTime}`;
+    
+    // 更新最高分数
+    if (gameTime > highScore) {
+        highScore = gameTime;
         localStorage.setItem('highScore', highScore);
     }
+    
+    // 显示最高分数
+    const formattedHighScore = formatTime(highScore);
+    document.getElementById('best-score').textContent = `历史最佳: ${formattedHighScore}`;
     
     // 根据倾斜角度选择结局图片
     const imageList = angle < 0 ? gameoverImages.left : gameoverImages.right;
@@ -420,11 +630,24 @@ function gameOver() {
     // 加载图片
     gameoverImage.src = selectedImage;
     
-    // 更新分数显示
-    finalScoreDisplay.textContent = `你睡了 ${formatTime(timeElapsed)}`;
-    document.getElementById('best-score').textContent = `历史最佳: ${formatTime(highScore)}`;
+    // 先显示毛玻璃背景，再显示游戏结束界面
+    gameOverOverlay.style.display = 'block';
     
-    gameOverEl.style.display = 'block';
+    // 触发淡入动画
+    setTimeout(() => {
+        gameOverOverlay.classList.add('show');
+    }, 10);
+    
+    // 增加小延迟使毛玻璃效果有平滑过渡，然后显示弹窗
+    setTimeout(() => {
+        // 重置动画（如果之前已经显示过）
+        gameOverEl.style.animation = 'none';
+        void gameOverEl.offsetHeight; // 触发重排
+        gameOverEl.style.animation = 'pop-in 0.6s ease-out, float 3s ease-in-out 0.6s infinite';
+        
+        // 显示结算弹窗
+        gameOverEl.style.display = 'block';
+    }, 300);
     
     // 振动反馈（如果设备支持）
     if (navigator.vibrate) {
@@ -442,10 +665,58 @@ function imageLoaded() {
     }
 }
 
+// 添加一个新函数，专门用于处理移动设备的初始化问题
+function handleMobileInitialization() {
+    // 只在首次加载页面和窗口大小改变时调用
+    positionElements();
+    
+    // 再次确保女孩图片位置正确
+    const containerWidth = gameContainer.clientWidth;
+    const containerHeight = gameContainer.clientHeight;
+    
+    let bgScaleFactor;
+    const containerAspectRatio = containerWidth / containerHeight;
+    const bgAspectRatio = BG_ORIGINAL_WIDTH / BG_ORIGINAL_HEIGHT;
+    
+    if (containerAspectRatio > bgAspectRatio) {
+        bgScaleFactor = containerWidth / BG_ORIGINAL_WIDTH * 1.05;
+    } else {
+        bgScaleFactor = containerHeight / BG_ORIGINAL_HEIGHT;
+    }
+    
+    const bgDisplayWidth = containerAspectRatio > bgAspectRatio ? 
+                          containerWidth * 1.05 : 
+                          BG_ORIGINAL_WIDTH * bgScaleFactor * 1.05;
+    const bgDisplayHeight = containerAspectRatio > bgAspectRatio ? 
+                           BG_ORIGINAL_HEIGHT * bgScaleFactor : 
+                           containerHeight;
+    
+    const bgOffsetX = (containerWidth - bgDisplayWidth) / 2;
+    const bgOffsetY = (containerHeight - bgDisplayHeight) / 2;
+    
+    const girlWidth = GIRL_ORIGINAL_WIDTH * bgScaleFactor * 1.05;
+    const girlHeight = GIRL_ORIGINAL_HEIGHT * bgScaleFactor * 1.05;
+    
+    const girlPositionX = bgOffsetX + (GIRL_POSITION_X_RATIO * bgDisplayWidth) - (girlWidth / 2);
+    const girlPositionY = bgOffsetY + (GIRL_POSITION_Y_RATIO * bgDisplayHeight) - girlHeight;
+    
+    girlBody.style.width = `${girlWidth}px`;
+    girlBody.style.height = `${girlHeight}px`;
+    girlBody.style.left = `${girlPositionX}px`;
+    girlBody.style.top = `${girlPositionY}px`;
+}
+
 // 事件监听器
 function setupEventListeners() {
     // 开始按钮
-    startBtn.addEventListener('click', initGame);
+    startBtn.addEventListener('click', function() {
+        // 初始化音频上下文（如果尚未初始化）
+        initAudio();
+        
+        initGame();
+        // 尝试播放BGM（响应用户交互），使用加速效果
+        resumeAndSpeedUpBGM();
+    });
     
     // 图片加载完成事件
     bgTrain.addEventListener('load', imageLoaded);
@@ -456,6 +727,12 @@ function setupEventListeners() {
     leftBtn.addEventListener('touchstart', (e) => { 
         leftPressed = true; 
         e.preventDefault();
+        // 如果游戏已经开始但BGM没有播放，尝试播放
+        if (isGameStarted && document.getElementById('bgm').paused) {
+            // 初始化音频上下文（如果尚未初始化）
+            initAudio();
+            resumeAndSpeedUpBGM();
+        }
     }, { passive: false });
     
     leftBtn.addEventListener('touchend', (e) => { 
@@ -484,20 +761,46 @@ function setupEventListeners() {
     }, { passive: false });
     
     // 鼠标控制（用于桌面测试）
-    leftBtn.addEventListener('mousedown', () => { leftPressed = true; });
+    leftBtn.addEventListener('mousedown', () => { 
+        leftPressed = true; 
+        // 如果游戏已经开始但BGM没有播放，尝试播放
+        if (isGameStarted && document.getElementById('bgm').paused) {
+            // 初始化音频上下文（如果尚未初始化）
+            initAudio();
+            resumeAndSpeedUpBGM();
+        }
+    });
     leftBtn.addEventListener('mouseup', () => { leftPressed = false; });
     leftBtn.addEventListener('mouseleave', () => { leftPressed = false; });
     
-    rightBtn.addEventListener('mousedown', () => { rightPressed = true; });
+    rightBtn.addEventListener('mousedown', () => { 
+        rightPressed = true; 
+        // 如果游戏已经开始但BGM没有播放，尝试播放
+        if (isGameStarted && document.getElementById('bgm').paused) {
+            // 初始化音频上下文（如果尚未初始化）
+            initAudio();
+            resumeAndSpeedUpBGM();
+        }
+    });
     rightBtn.addEventListener('mouseup', () => { rightPressed = false; });
     rightBtn.addEventListener('mouseleave', () => { rightPressed = false; });
     
     // 重新开始按钮
-    restartBtn.addEventListener('click', initGame);
+    restartBtn.addEventListener('click', function() {
+        // 初始化音频上下文（如果尚未初始化）
+        initAudio();
+        
+        initGame();
+        // 尝试播放BGM（响应用户交互），使用加速效果
+        resumeAndSpeedUpBGM();
+    });
     
     // 窗口大小调整
     window.addEventListener('resize', () => {
         positionElements();
+        // 专门为移动设备添加额外处理
+        handleMobileInitialization();
+        
         if (!isGameStarted) {
             // 如果游戏还没开始，需要重置女孩的角度，但保持震动效果
             const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
@@ -516,14 +819,36 @@ function setupEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowLeft') {
             leftPressed = true;
+            // 尝试播放BGM
+            if (isGameStarted && document.getElementById('bgm').paused) {
+                // 初始化音频上下文（如果尚未初始化）
+                initAudio();
+                resumeAndSpeedUpBGM();
+            }
         } else if (e.key === 'ArrowRight') {
             rightPressed = true;
-        } else if (e.key === ' ' && !isGameStarted) {
-            // 空格键开始游戏
-            initGame();
-        } else if (e.key === ' ' && isGameOver) {
-            // 空格键重新开始游戏
-            initGame();
+            // 尝试播放BGM
+            if (isGameStarted && document.getElementById('bgm').paused) {
+                // 初始化音频上下文（如果尚未初始化）
+                initAudio();
+                resumeAndSpeedUpBGM();
+            } else if (e.key === ' ' && !isGameStarted) {
+                // 初始化音频上下文（如果尚未初始化）
+                initAudio();
+                
+                // 空格键开始游戏
+                initGame();
+                // 尝试播放BGM，使用加速效果
+                resumeAndSpeedUpBGM();
+            } else if (e.key === ' ' && isGameOver) {
+                // 初始化音频上下文（如果尚未初始化）
+                initAudio();
+                
+                // 空格键重新开始游戏
+                initGame();
+                // 尝试播放BGM，使用加速效果
+                resumeAndSpeedUpBGM();
+            }
         }
     });
     
@@ -534,21 +859,50 @@ function setupEventListeners() {
             rightPressed = false;
         }
     });
+    
+    // 添加专门针对移动设备的处理
+    window.addEventListener('orientationchange', () => {
+        // 方向改变后延迟执行，确保新尺寸已经应用
+        setTimeout(() => {
+            positionElements();
+            handleMobileInitialization();
+        }, 200);
+    });
+    
+    // 添加页面可见性变化的处理，当用户从其他应用切换回来时重新计算位置
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            handleMobileInitialization();
+        }
+    });
 }
 
 // 初始化
 function init() {
+    // 音频上下文将在用户首次交互时初始化，而不是在这里
+    
     setupEventListeners();
     positionElements();
     // 游戏开始时显示开始界面，而不是直接开始游戏
     isGameStarted = false;
     startScreen.style.display = 'flex';
     
+    // 重新计算一次女孩的位置，确保在开始界面正确显示
+    handleMobileInitialization();
+    
     // 重置女孩的角度，但保持震动效果
     const mainOffset = Math.sin(trainBouncePhase) * TRAIN_BOUNCE_AMPLITUDE;
     const secondaryOffset = Math.sin(trainSecondaryBouncePhase) * TRAIN_BOUNCE_SECONDARY_AMPLITUDE;
     const totalOffset = mainOffset + secondaryOffset + randomBounceOffset;
     girlBody.style.transform = `translateY(${totalOffset}px) rotate(0deg)`;
+    
+    // 强制立即应用样式变更，避免任何可能的渲染延迟问题
+    setTimeout(() => {
+        // 触发重新渲染
+        girlBody.style.display = 'none';
+        void girlBody.offsetHeight; // 触发重排
+        girlBody.style.display = '';
+    }, 50);
     
     requestAnimationFrame(gameLoop);
 }
